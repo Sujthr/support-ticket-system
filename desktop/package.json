@@ -1,0 +1,93 @@
+{
+  "name": "supportdesk",
+  "version": "1.0.0",
+  "description": "SupportDesk - Customer Support Ticketing System",
+  "author": "Sujit Kumar Thakur",
+  "license": "MIT",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:backend": "cd ../backend && npm run build",
+    "build:frontend": "cd ../frontend && npm run build:export",
+    "prebuild": "node scripts/prepare-build.js",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "package": "node scripts/prepare-build.js && electron-builder --win"
+  },
+  "dependencies": {
+    "electron-is-dev": "^2.0.0",
+    "electron-store": "^8.1.0",
+    "fix-path": "^4.0.0"
+  },
+  "devDependencies": {
+    "electron": "^28.1.0",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.supportdesk.app",
+    "productName": "SupportDesk",
+    "copyright": "Copyright (c) 2026 Sujit Kumar Thakur",
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "splash.html",
+      "app-backend/**/*",
+      "app-frontend/**/*",
+      "node_modules/**/*",
+      "!node_modules/electron/**",
+      "!node_modules/electron-builder/**"
+    ],
+    "extraResources": [
+      {
+        "from": "app-backend/prisma",
+        "to": "prisma",
+        "filter": ["**/*", "!dev.db-journal"]
+      },
+      {
+        "from": "app-backend/node_modules/.prisma",
+        "to": "prisma-engine",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "app-backend/node_modules/@prisma",
+        "to": "prisma-client",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "artifactName": "SupportDesk-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "SupportDesk",
+      "license": "../LICENSE"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.business"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "icon": "assets",
+      "category": "Office"
+    }
+  }
+}

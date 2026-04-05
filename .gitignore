@@ -8,3 +8,9 @@ uploads/
 
 backend/.env
 backend/prisma/dev.db
+
+# Desktop build artifacts
+desktop/app-backend/
+desktop/app-frontend/
+desktop/dist/
+desktop/node_modules/
