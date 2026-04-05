@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.next/
+.env
+*.log
+uploads/
+.DS_Store
+
+backend/.env
+backend/prisma/dev.db
