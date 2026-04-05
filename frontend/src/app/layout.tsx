@@ -6,8 +6,11 @@ import { Toaster } from 'react-hot-toast';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'SupportDesk - Customer Support Ticketing',
-  description: 'Multi-tenant customer support ticketing system',
+  title: 'SupportDesk - Customer Support Platform',
+  description: 'Multi-tenant customer support ticketing system by Sujit Kumar Thakur',
+  icons: {
+    icon: '/favicon.svg',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -15,7 +18,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         {children}
-        <Toaster position="top-right" />
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            style: {
+              borderRadius: '10px',
+              fontSize: '14px',
+            },
+          }}
+        />
       </body>
     </html>
   );

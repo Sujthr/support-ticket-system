@@ -9,7 +9,7 @@ import toast from 'react-hot-toast';
 export default function SettingsPage() {
   const { user, organization } = useAuthStore();
   const [activeTab, setActiveTab] = useState('org');
-  const [orgForm, setOrgForm] = useState({ name: '', domain: '' });
+  const [orgForm, setOrgForm] = useState({ name: '', domain: '', logo: '' as string });
   const [slaPolicies, setSlaPolicies] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [inviteForm, setInviteForm] = useState({ email: '', firstName: '', lastName: '', role: 'AGENT' });
@@ -19,7 +19,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (organization) {
-      setOrgForm({ name: organization.name, domain: '' });
+      setOrgForm({ name: organization.name, domain: '', logo: organization.logo || '' });
     }
     slaApi.list().then((r) => setSlaPolicies(r.data)).catch(() => {});
     usersApi.list({ limit: 50 }).then((r) => setUsers(r.data.data)).catch(() => {});
@@ -33,7 +33,7 @@ export default function SettingsPage() {
 
   const handleOrgUpdate = async () => {
     try {
-      await orgApi.update(orgForm);
+      await orgApi.update({ name: orgForm.name, domain: orgForm.domain, logo: orgForm.logo || null });
       toast.success('Organization updated');
     } catch { toast.error('Failed to update'); }
   };
@@ -101,17 +101,53 @@ export default function SettingsPage() {
       </div>
 
       {activeTab === 'org' && (
-        <div className="card p-6 max-w-xl space-y-4">
-          <h3 className="font-semibold">Organization Settings</h3>
-          <div>
-            <label className="block text-sm font-medium mb-1">Name</label>
-            <input className="input" value={orgForm.name} onChange={(e) => setOrgForm({ ...orgForm, name: e.target.value })} />
+        <div className="space-y-6 max-w-xl">
+          {/* Organization Logo */}
+          <div className="card p-6">
+            <h3 className="font-semibold mb-4">Organization Logo</h3>
+            <div className="flex items-center gap-6">
+              <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-700 flex items-center justify-center overflow-hidden bg-gray-50 dark:bg-gray-800">
+                {orgForm.logo ? (
+                  <img src={orgForm.logo} alt="Logo" className="w-full h-full object-contain" />
+                ) : (
+                  <span className="text-2xl font-bold text-gray-300 dark:text-gray-600">
+                    {orgForm.name?.substring(0, 2).toUpperCase() || 'ORG'}
+                  </span>
+                )}
+              </div>
+              <div className="flex-1 space-y-2">
+                <input
+                  className="input text-sm"
+                  placeholder="Paste logo URL (e.g., https://yoursite.com/logo.png)"
+                  value={orgForm.logo || ''}
+                  onChange={(e) => setOrgForm({ ...orgForm, logo: e.target.value })}
+                />
+                <p className="text-xs text-gray-400">Recommended: Square image, 128x128px or larger. PNG or SVG.</p>
+                {orgForm.logo && (
+                  <button
+                    onClick={() => setOrgForm({ ...orgForm, logo: '' })}
+                    className="text-xs text-red-500 hover:text-red-700"
+                  >
+                    Remove logo
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Domain</label>
-            <input className="input" value={orgForm.domain} onChange={(e) => setOrgForm({ ...orgForm, domain: e.target.value })} placeholder="company.com" />
+
+          {/* Organization Details */}
+          <div className="card p-6 space-y-4">
+            <h3 className="font-semibold">Organization Details</h3>
+            <div>
+              <label className="block text-sm font-medium mb-1">Name</label>
+              <input className="input" value={orgForm.name} onChange={(e) => setOrgForm({ ...orgForm, name: e.target.value })} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Domain</label>
+              <input className="input" value={orgForm.domain} onChange={(e) => setOrgForm({ ...orgForm, domain: e.target.value })} placeholder="company.com" />
+            </div>
+            <button onClick={handleOrgUpdate} className="btn-primary">Save Changes</button>
           </div>
-          <button onClick={handleOrgUpdate} className="btn-primary">Save</button>
         </div>
       )}
 
