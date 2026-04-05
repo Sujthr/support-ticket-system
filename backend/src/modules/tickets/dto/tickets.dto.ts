@@ -11,9 +11,9 @@ export class CreateTicketDto {
   @IsString()
   description: string;
 
-  @ApiPropertyOptional({ enum: ['LOW', 'MEDIUM', 'HIGH', 'URGENT'] })
+  @ApiPropertyOptional()
   @IsOptional()
-  @IsEnum(['LOW', 'MEDIUM', 'HIGH', 'URGENT'])
+  @IsString()
   priority?: string;
 
   @ApiPropertyOptional()
@@ -21,11 +21,21 @@ export class CreateTicketDto {
   @IsUUID()
   assigneeId?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  categoryId?: string;
+
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
   tags?: string[];
+
+  @ApiPropertyOptional({ enum: ['WEB', 'EMAIL', 'API'] })
+  @IsOptional()
+  @IsString()
+  source?: string;
 }
 
 export class UpdateTicketDto {
@@ -39,9 +49,9 @@ export class UpdateTicketDto {
   @IsString()
   description?: string;
 
-  @ApiPropertyOptional({ enum: ['LOW', 'MEDIUM', 'HIGH', 'URGENT'] })
+  @ApiPropertyOptional()
   @IsOptional()
-  @IsEnum(['LOW', 'MEDIUM', 'HIGH', 'URGENT'])
+  @IsString()
   priority?: string;
 
   @ApiPropertyOptional({ enum: ['OPEN', 'PENDING', 'RESOLVED', 'CLOSED'] })
@@ -54,6 +64,11 @@ export class UpdateTicketDto {
   @IsUUID()
   assigneeId?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  categoryId?: string;
+
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()
   @IsArray()
@@ -62,12 +77,12 @@ export class UpdateTicketDto {
 }
 
 export class TicketFilterDto extends PaginationDto {
-  @ApiPropertyOptional({ enum: ['OPEN', 'PENDING', 'RESOLVED', 'CLOSED'] })
+  @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   status?: string;
 
-  @ApiPropertyOptional({ enum: ['LOW', 'MEDIUM', 'HIGH', 'URGENT'] })
+  @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   priority?: string;
@@ -76,6 +91,11 @@ export class TicketFilterDto extends PaginationDto {
   @IsOptional()
   @IsUUID()
   assigneeId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  categoryId?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -104,13 +124,18 @@ export class BulkUpdateTicketsDto {
   @IsEnum(['OPEN', 'PENDING', 'RESOLVED', 'CLOSED'])
   status?: string;
 
-  @ApiPropertyOptional({ enum: ['LOW', 'MEDIUM', 'HIGH', 'URGENT'] })
+  @ApiPropertyOptional()
   @IsOptional()
-  @IsEnum(['LOW', 'MEDIUM', 'HIGH', 'URGENT'])
+  @IsString()
   priority?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsUUID()
   assigneeId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  categoryId?: string;
 }

@@ -7,7 +7,6 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Attach access token to every request
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('accessToken');
@@ -18,7 +17,6 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Auto-refresh on 401
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -87,6 +85,55 @@ export const orgApi = {
   getTags: () => api.get('/organizations/tags'),
 };
 
+// ── Categories ──
+export const categoriesApi = {
+  list: () => api.get('/categories'),
+  create: (data: any) => api.post('/categories', data),
+  update: (id: string, data: any) => api.patch(`/categories/${id}`, data),
+  delete: (id: string) => api.delete(`/categories/${id}`),
+  reorder: (ids: string[]) => api.patch('/categories/reorder', { ids }),
+};
+
+// ── Priorities ──
+export const prioritiesApi = {
+  list: () => api.get('/priorities'),
+  create: (data: any) => api.post('/priorities', data),
+  update: (id: string, data: any) => api.patch(`/priorities/${id}`, data),
+  delete: (id: string) => api.delete(`/priorities/${id}`),
+};
+
+// ── Canned Responses ──
+export const cannedResponsesApi = {
+  list: () => api.get('/canned-responses'),
+  create: (data: any) => api.post('/canned-responses', data),
+  update: (id: string, data: any) => api.patch(`/canned-responses/${id}`, data),
+  delete: (id: string) => api.delete(`/canned-responses/${id}`),
+};
+
+// ── Watchers ──
+export const watchersApi = {
+  list: (ticketId: string) => api.get(`/tickets/${ticketId}/watchers`),
+  add: (ticketId: string, userId: string) => api.post(`/tickets/${ticketId}/watchers`, { userId }),
+  remove: (ticketId: string, userId: string) => api.delete(`/tickets/${ticketId}/watchers/${userId}`),
+  watchSelf: (ticketId: string) => api.post(`/tickets/${ticketId}/watchers/me`),
+  unwatchSelf: (ticketId: string) => api.delete(`/tickets/${ticketId}/watchers/me`),
+};
+
+// ── Satisfaction (CSAT) ──
+export const csatApi = {
+  submit: (ticketId: string, data: any) => api.post(`/satisfaction/tickets/${ticketId}`, data),
+  get: (ticketId: string) => api.get(`/satisfaction/tickets/${ticketId}`),
+  agentStats: (agentId: string) => api.get(`/satisfaction/agents/${agentId}`),
+  overview: () => api.get('/satisfaction/overview'),
+};
+
+// ── Time Tracking ──
+export const timeTrackingApi = {
+  log: (ticketId: string, data: any) => api.post(`/tickets/${ticketId}/time`, data),
+  list: (ticketId: string) => api.get(`/tickets/${ticketId}/time`),
+  delete: (ticketId: string, entryId: string) => api.delete(`/tickets/${ticketId}/time/${entryId}`),
+};
+
 // ── Notifications ──
 export const notificationsApi = {
   list: (params?: any) => api.get('/notifications', { params }),
@@ -134,4 +181,11 @@ export const jiraApi = {
   deleteConfig: () => api.delete('/jira/config'),
   createIssue: (data: any) => api.post('/jira/create-issue', data),
   syncStatus: (ticketId: string) => api.get(`/jira/sync/${ticketId}`),
+};
+
+// ── Email Config ──
+export const emailConfigApi = {
+  get: () => api.get('/email-config/config'),
+  save: (data: any) => api.post('/email-config/config', data),
+  test: () => api.post('/email-config/test'),
 };

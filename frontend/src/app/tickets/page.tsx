@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import AppLayout from '@/components/layout/AppLayout';
-import { ticketsApi, usersApi } from '@/lib/api';
+import { ticketsApi, usersApi, categoriesApi } from '@/lib/api';
 import { Ticket, PaginatedResponse, User } from '@/types';
 import { timeAgo, getPriorityColor, getStatusColor, getInitials, cn } from '@/lib/utils';
 import { PlusIcon, FunnelIcon } from '@heroicons/react/24/outline';
@@ -30,8 +30,9 @@ function TicketsContent() {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const [filters, setFilters] = useState({ status: '', priority: '', search: '', page: 1 });
+  const [filters, setFilters] = useState({ status: '', priority: '', categoryId: '', search: '', page: 1 });
   const [selected, setSelected] = useState<string[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
 
   const fetchTickets = useCallback(async () => {
     setLoading(true);
@@ -39,6 +40,7 @@ function TicketsContent() {
       const params: any = { page: filters.page, limit: 20 };
       if (filters.status) params.status = filters.status;
       if (filters.priority) params.priority = filters.priority;
+      if (filters.categoryId) params.categoryId = filters.categoryId;
       if (filters.search) params.search = filters.search;
 
       const api = isMyView ? ticketsApi.myTickets : ticketsApi.list;
@@ -55,6 +57,10 @@ function TicketsContent() {
   useEffect(() => {
     fetchTickets();
   }, [fetchTickets]);
+
+  useEffect(() => {
+    categoriesApi.list().then((res) => setCategories(res.data)).catch(() => {});
+  }, []);
 
   const toggleSelect = (id: string) => {
     setSelected((prev) =>
@@ -121,6 +127,16 @@ function TicketsContent() {
               <option key={p} value={p}>{p}</option>
             ))}
           </select>
+          <select
+            className="input max-w-[180px]"
+            value={filters.categoryId}
+            onChange={(e) => setFilters({ ...filters, categoryId: e.target.value, page: 1 })}
+          >
+            <option value="">All Categories</option>
+            {categories.map((cat) => (
+              <option key={cat.id} value={cat.id}>{cat.name}</option>
+            ))}
+          </select>
 
           {selected.length > 0 && (
             <div className="flex items-center gap-2 ml-auto">
@@ -164,6 +180,7 @@ function TicketsContent() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Priority</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assignee</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
                 </tr>
@@ -206,6 +223,19 @@ function TicketsContent() {
                     </td>
                     <td className="px-4 py-3">
                       <span className={`badge ${getPriorityColor(ticket.priority)}`}>{ticket.priority}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {ticket.category ? (
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: ticket.category.color || '#6b7280' }}
+                          />
+                          <span className="text-sm">{ticket.category.name}</span>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-gray-400">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       {ticket.assignee ? (

@@ -10,23 +10,28 @@ datasource db {
 // ─── ORGANIZATIONS (TENANTS) ────────────────────────────────
 
 model Organization {
-  id        String   @id @default(uuid())
-  name      String
-  slug      String   @unique
-  domain    String?
-  logo      String?
-  plan      String   @default("FREE")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id              String   @id @default(uuid())
+  name            String
+  slug            String   @unique
+  domain          String?
+  logo            String?
+  plan            String   @default("FREE")
+  autoAssignMode  String   @default("MANUAL") @map("auto_assign_mode") // MANUAL, ROUND_ROBIN, LOAD_BALANCED
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
-  users         User[]
-  tickets       Ticket[]
-  slaPolicies   SlaPolicy[]
-  tags          Tag[]
-  articles      Article[]
-  categories    ArticleCategory[]
-  notifications Notification[]
-  jiraConfig    JiraConfig?
+  users              User[]
+  tickets            Ticket[]
+  slaPolicies        SlaPolicy[]
+  tags               Tag[]
+  ticketCategories   TicketCategory[]
+  customPriorities   CustomPriority[]
+  cannedResponses    CannedResponse[]
+  articles           Article[]
+  articleCategories   ArticleCategory[]
+  notifications      Notification[]
+  jiraConfig         JiraConfig?
+  emailConfig        EmailConfig?
 
   @@map("organizations")
 }
@@ -34,26 +39,31 @@ model Organization {
 // ─── USERS ──────────────────────────────────────────────────
 
 model User {
-  id             String    @id @default(uuid())
-  email          String
-  passwordHash   String    @map("password_hash")
-  firstName      String    @map("first_name")
-  lastName       String    @map("last_name")
-  avatar         String?
-  role           String    @default("END_USER")
-  isActive       Boolean   @default(true) @map("is_active")
-  lastLoginAt    DateTime? @map("last_login_at")
-  organizationId String    @map("organization_id")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
+  id                  String    @id @default(uuid())
+  email               String
+  passwordHash        String    @map("password_hash")
+  firstName           String    @map("first_name")
+  lastName            String    @map("last_name")
+  avatar              String?
+  role                String    @default("END_USER")
+  isActive            Boolean   @default(true) @map("is_active")
+  isAvailableForAssign Boolean  @default(true) @map("is_available_for_assign")
+  lastLoginAt         DateTime? @map("last_login_at")
+  organizationId      String    @map("organization_id")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
 
-  organization      Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdTickets    Ticket[]       @relation("TicketCreator")
-  assignedTickets   Ticket[]       @relation("TicketAssignee")
-  comments          Comment[]
-  notifications     Notification[] @relation("NotificationRecipient")
-  activityLogs      ActivityLog[]
-  refreshTokens     RefreshToken[]
+  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdTickets      Ticket[]             @relation("TicketCreator")
+  assignedTickets     Ticket[]             @relation("TicketAssignee")
+  comments            Comment[]
+  notifications       Notification[]       @relation("NotificationRecipient")
+  activityLogs        ActivityLog[]
+  refreshTokens       RefreshToken[]
+  watchedTickets      TicketWatcher[]
+  satisfactionRatings SatisfactionRating[]
+  timeEntries         TimeEntry[]
+  cannedResponses     CannedResponse[]
 
   @@unique([email, organizationId])
   @@index([organizationId])
@@ -77,39 +87,88 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
+// ─── TICKET CATEGORIES ──────────────────────────────────────
+
+model TicketCategory {
+  id             String   @id @default(uuid())
+  name           String
+  description    String?
+  color          String   @default("#6B7280")
+  icon           String?
+  isActive       Boolean  @default(true) @map("is_active")
+  sortOrder      Int      @default(0) @map("sort_order")
+  organizationId String   @map("organization_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tickets      Ticket[]
+
+  @@unique([name, organizationId])
+  @@index([organizationId])
+  @@map("ticket_categories")
+}
+
+// ─── CUSTOM PRIORITIES ──────────────────────────────────────
+
+model CustomPriority {
+  id             String   @id @default(uuid())
+  name           String
+  level          Int                     // 1=lowest, higher=more urgent
+  color          String   @default("#6B7280")
+  icon           String?
+  isDefault      Boolean  @default(false) @map("is_default")
+  organizationId String   @map("organization_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([name, organizationId])
+  @@unique([level, organizationId])
+  @@index([organizationId])
+  @@map("custom_priorities")
+}
+
 // ─── TICKETS ────────────────────────────────────────────────
 
 model Ticket {
-  id              String    @id @default(uuid())
-  ticketNumber    Int       @map("ticket_number")
-  title           String
-  description     String
-  priority        String    @default("MEDIUM")
-  status          String    @default("OPEN")
-  organizationId  String    @map("organization_id")
-  creatorId       String    @map("creator_id")
-  assigneeId      String?   @map("assignee_id")
-  slaPolicyId     String?   @map("sla_policy_id")
-  slaBreached     Boolean   @default(false) @map("sla_breached")
-  dueAt           DateTime? @map("due_at")
-  resolvedAt      DateTime? @map("resolved_at")
-  closedAt        DateTime? @map("closed_at")
-  firstResponseAt DateTime? @map("first_response_at")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  id               String    @id @default(uuid())
+  ticketNumber     Int       @map("ticket_number")
+  title            String
+  description      String
+  priority         String    @default("MEDIUM")
+  status           String    @default("OPEN")
+  categoryId       String?   @map("category_id")
+  organizationId   String    @map("organization_id")
+  creatorId        String    @map("creator_id")
+  assigneeId       String?   @map("assignee_id")
+  slaPolicyId      String?   @map("sla_policy_id")
+  slaBreached      Boolean   @default(false) @map("sla_breached")
+  dueAt            DateTime? @map("due_at")
+  resolvedAt       DateTime? @map("resolved_at")
+  closedAt         DateTime? @map("closed_at")
+  firstResponseAt  DateTime? @map("first_response_at")
+  totalTimeMinutes Int       @default(0) @map("total_time_minutes")
+  source           String    @default("WEB") // WEB, EMAIL, API
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
 
   jiraIssueKey  String?  @map("jira_issue_key")
   jiraIssueUrl  String?  @map("jira_issue_url")
   jiraStatus    String?  @map("jira_status")
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  creator      User         @relation("TicketCreator", fields: [creatorId], references: [id])
-  assignee     User?        @relation("TicketAssignee", fields: [assigneeId], references: [id])
-  slaPolicy    SlaPolicy?   @relation(fields: [slaPolicyId], references: [id])
-  comments     Comment[]
-  attachments  Attachment[]
-  tags         TicketTag[]
-  activityLogs ActivityLog[]
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  creator            User                @relation("TicketCreator", fields: [creatorId], references: [id])
+  assignee           User?               @relation("TicketAssignee", fields: [assigneeId], references: [id])
+  slaPolicy          SlaPolicy?          @relation(fields: [slaPolicyId], references: [id])
+  category           TicketCategory?     @relation(fields: [categoryId], references: [id])
+  comments           Comment[]
+  attachments        Attachment[]
+  tags               TicketTag[]
+  activityLogs       ActivityLog[]
+  watchers           TicketWatcher[]
+  satisfactionRating SatisfactionRating?
+  timeEntries        TimeEntry[]
 
   @@unique([ticketNumber, organizationId])
   @@index([organizationId])
@@ -117,6 +176,7 @@ model Ticket {
   @@index([priority])
   @@index([assigneeId])
   @@index([creatorId])
+  @@index([categoryId])
   @@index([createdAt])
   @@index([organizationId, status])
   @@index([organizationId, assigneeId])
@@ -190,6 +250,77 @@ model TicketTag {
   @@map("ticket_tags")
 }
 
+// ─── TICKET WATCHERS ────────────────────────────────────────
+
+model TicketWatcher {
+  ticketId String   @map("ticket_id")
+  userId   String   @map("user_id")
+  addedAt  DateTime @default(now()) @map("added_at")
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([ticketId, userId])
+  @@map("ticket_watchers")
+}
+
+// ─── SATISFACTION RATINGS (CSAT) ────────────────────────────
+
+model SatisfactionRating {
+  id        String   @id @default(uuid())
+  rating    Int                       // 1-5 stars
+  feedback  String?
+  ticketId  String   @unique @map("ticket_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("satisfaction_ratings")
+}
+
+// ─── TIME ENTRIES ───────────────────────────────────────────
+
+model TimeEntry {
+  id          String   @id @default(uuid())
+  minutes     Int
+  description String?
+  ticketId    String   @map("ticket_id")
+  userId      String   @map("user_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([ticketId])
+  @@index([userId])
+  @@map("time_entries")
+}
+
+// ─── CANNED RESPONSES ───────────────────────────────────────
+
+model CannedResponse {
+  id             String   @id @default(uuid())
+  title          String
+  content        String
+  shortcut       String?              // e.g. "/thanks", "/refund"
+  categoryTag    String?  @map("category_tag")
+  isShared       Boolean  @default(true) @map("is_shared") // shared across org or personal
+  authorId       String   @map("author_id")
+  organizationId String   @map("organization_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  author       User         @relation(fields: [authorId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([authorId])
+  @@map("canned_responses")
+}
+
 // ─── SLA POLICIES ───────────────────────────────────────────
 
 model SlaPolicy {
@@ -249,6 +380,33 @@ model Notification {
   @@index([recipientId, isRead])
   @@index([organizationId])
   @@map("notifications")
+}
+
+// ─── EMAIL CONFIG ───────────────────────────────────────────
+
+model EmailConfig {
+  id              String  @id @default(uuid())
+  smtpHost        String  @map("smtp_host")
+  smtpPort        Int     @map("smtp_port")
+  smtpUser        String  @map("smtp_user")
+  smtpPass        String  @map("smtp_pass")
+  fromEmail       String  @map("from_email")
+  fromName        String  @map("from_name")
+  isActive        Boolean @default(true) @map("is_active")
+  // Trigger toggles
+  onTicketCreated    Boolean @default(true) @map("on_ticket_created")
+  onTicketAssigned   Boolean @default(true) @map("on_ticket_assigned")
+  onStatusChanged    Boolean @default(true) @map("on_status_changed")
+  onNewComment       Boolean @default(true) @map("on_new_comment")
+  onSlaBreach        Boolean @default(true) @map("on_sla_breach")
+  onTicketResolved   Boolean @default(true) @map("on_ticket_resolved")
+  organizationId  String  @unique @map("organization_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("email_configs")
 }
 
 // ─── KNOWLEDGE BASE ─────────────────────────────────────────

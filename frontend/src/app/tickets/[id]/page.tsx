@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import AppLayout from '@/components/layout/AppLayout';
-import { ticketsApi, commentsApi, usersApi, jiraApi } from '@/lib/api';
+import { ticketsApi, commentsApi, usersApi, jiraApi, categoriesApi, watchersApi, timeTrackingApi, csatApi, cannedResponsesApi } from '@/lib/api';
 import { Ticket, User } from '@/types';
 import { useAuthStore } from '@/stores/auth';
 import {
@@ -11,7 +11,9 @@ import {
 } from '@/lib/utils';
 import {
   ArrowLeftIcon, PaperAirplaneIcon, LockClosedIcon, ClockIcon,
+  EyeIcon, EyeSlashIcon, StarIcon as StarOutlineIcon, PlusIcon,
 } from '@heroicons/react/24/outline';
+import { StarIcon as StarSolidIcon } from '@heroicons/react/24/solid';
 import toast from 'react-hot-toast';
 
 export default function TicketDetailPage() {
@@ -26,7 +28,37 @@ export default function TicketDetailPage() {
   const [submitting, setSubmitting] = useState(false);
   const [creatingJira, setCreatingJira] = useState(false);
 
+  // Category
+  const [categories, setCategories] = useState<any[]>([]);
+
+  // Watchers
+  const [watchers, setWatchers] = useState<any[]>([]);
+  const [watcherUserId, setWatcherUserId] = useState('');
+  const [allUsers, setAllUsers] = useState<User[]>([]);
+
+  // Time tracking
+  const [showTimeForm, setShowTimeForm] = useState(false);
+  const [timeMinutes, setTimeMinutes] = useState('');
+  const [timeDescription, setTimeDescription] = useState('');
+  const [loggingTime, setLoggingTime] = useState(false);
+  const [timeEntries, setTimeEntries] = useState<any[]>([]);
+
+  // CSAT
+  const [csatRating, setCsatRating] = useState(0);
+  const [csatFeedback, setCsatFeedback] = useState('');
+  const [csatExisting, setCsatExisting] = useState<any>(null);
+  const [submittingCsat, setSubmittingCsat] = useState(false);
+  const [csatHover, setCsatHover] = useState(0);
+
+  // Canned responses
+  const [cannedResponses, setCannedResponses] = useState<any[]>([]);
+  const [showCannedDropdown, setShowCannedDropdown] = useState(false);
+
   const isAgent = currentUser?.role === 'ADMIN' || currentUser?.role === 'AGENT';
+  const isEndUser = currentUser?.role === 'END_USER';
+  const isCreator = currentUser?.id === ticket?.creatorId;
+  const isResolved = ticket?.status === 'RESOLVED' || ticket?.status === 'CLOSED';
+  const isWatching = watchers.some((w: any) => w.userId === currentUser?.id || w.user?.id === currentUser?.id);
 
   const fetchTicket = async () => {
     try {
@@ -40,11 +72,38 @@ export default function TicketDetailPage() {
     }
   };
 
+  const fetchWatchers = async () => {
+    try {
+      const { data } = await watchersApi.list(params.id as string);
+      setWatchers(Array.isArray(data) ? data : data.data || []);
+    } catch {}
+  };
+
+  const fetchTimeEntries = async () => {
+    try {
+      const { data } = await timeTrackingApi.list(params.id as string);
+      setTimeEntries(Array.isArray(data) ? data : data.data || []);
+    } catch {}
+  };
+
+  const fetchCsat = async () => {
+    try {
+      const { data } = await csatApi.get(params.id as string);
+      if (data) setCsatExisting(data);
+    } catch {}
+  };
+
   useEffect(() => {
     fetchTicket();
+    fetchWatchers();
+    fetchTimeEntries();
+    categoriesApi.list().then((res) => setCategories(Array.isArray(res.data) ? res.data : res.data.data || [])).catch(() => {});
     if (isAgent) {
       usersApi.agents().then((res) => setAgents(res.data)).catch(() => {});
+      usersApi.list().then((res) => setAllUsers(Array.isArray(res.data) ? res.data : res.data.data || [])).catch(() => {});
+      cannedResponsesApi.list().then((res) => setCannedResponses(Array.isArray(res.data) ? res.data : res.data.data || [])).catch(() => {});
     }
+    fetchCsat();
   }, [params.id]);
 
   const handleStatusChange = async (status: string) => {
@@ -95,6 +154,92 @@ export default function TicketDetailPage() {
       await ticketsApi.update(ticket.id, { priority });
       fetchTicket();
     } catch {}
+  };
+
+  const handleCategoryChange = async (categoryId: string) => {
+    if (!ticket) return;
+    try {
+      await ticketsApi.update(ticket.id, { categoryId: categoryId || null });
+      fetchTicket();
+      toast.success('Category updated');
+    } catch {
+      toast.error('Failed to update category');
+    }
+  };
+
+  const handleWatchToggle = async () => {
+    if (!ticket) return;
+    try {
+      if (isWatching) {
+        await watchersApi.unwatchSelf(ticket.id);
+        toast.success('Unwatched ticket');
+      } else {
+        await watchersApi.watchSelf(ticket.id);
+        toast.success('Watching ticket');
+      }
+      fetchWatchers();
+    } catch {
+      toast.error('Failed to update watch status');
+    }
+  };
+
+  const handleAddWatcher = async () => {
+    if (!ticket || !watcherUserId) return;
+    try {
+      await watchersApi.add(ticket.id, watcherUserId);
+      setWatcherUserId('');
+      fetchWatchers();
+      toast.success('Watcher added');
+    } catch {
+      toast.error('Failed to add watcher');
+    }
+  };
+
+  const handleLogTime = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ticket || !timeMinutes) return;
+    setLoggingTime(true);
+    try {
+      await timeTrackingApi.log(ticket.id, {
+        minutes: parseInt(timeMinutes),
+        description: timeDescription || undefined,
+      });
+      setTimeMinutes('');
+      setTimeDescription('');
+      setShowTimeForm(false);
+      fetchTicket();
+      fetchTimeEntries();
+      toast.success('Time logged');
+    } catch {
+      toast.error('Failed to log time');
+    } finally {
+      setLoggingTime(false);
+    }
+  };
+
+  const handleCsatSubmit = async () => {
+    if (!ticket || csatRating === 0) return;
+    setSubmittingCsat(true);
+    try {
+      await csatApi.submit(ticket.id, { rating: csatRating, feedback: csatFeedback || undefined });
+      toast.success('Thank you for your feedback!');
+      fetchCsat();
+    } catch {
+      toast.error('Failed to submit rating');
+    } finally {
+      setSubmittingCsat(false);
+    }
+  };
+
+  const insertCannedResponse = (content: string) => {
+    setComment((prev) => (prev ? prev + '\n' + content : content));
+    setShowCannedDropdown(false);
+  };
+
+  const formatTimeMinutes = (mins: number) => {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
   };
 
   const handleComment = async (e: React.FormEvent) => {
@@ -217,6 +362,34 @@ export default function TicketDetailPage() {
                   </label>
                 </div>
               )}
+              {isAgent && cannedResponses.length > 0 && (
+                <div className="relative mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowCannedDropdown(!showCannedDropdown)}
+                    className="text-xs text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1"
+                  >
+                    Insert template
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                  </button>
+                  {showCannedDropdown && (
+                    <div className="absolute z-10 top-full left-0 mt-1 w-72 max-h-48 overflow-y-auto bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg">
+                      {cannedResponses.map((cr: any) => (
+                        <button
+                          key={cr.id}
+                          type="button"
+                          onClick={() => insertCannedResponse(cr.content)}
+                          className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-100 dark:border-gray-800 last:border-0"
+                        >
+                          <span className="text-sm font-medium block">{cr.title}</span>
+                          {cr.shortcut && <span className="text-xs text-gray-400">/{cr.shortcut}</span>}
+                          <p className="text-xs text-gray-500 truncate mt-0.5">{cr.content}</p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="flex gap-3">
                 <textarea
                   className={cn(
@@ -336,6 +509,33 @@ export default function TicketDetailPage() {
             </div>
 
             <div>
+              <label className="block text-xs text-gray-500 mb-1">Category</label>
+              {isAgent ? (
+                <select
+                  className="input text-sm"
+                  value={(ticket as any).categoryId || ''}
+                  onChange={(e) => handleCategoryChange(e.target.value)}
+                >
+                  <option value="">No category</option>
+                  {categories.map((cat: any) => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </select>
+              ) : (
+                (ticket as any).category ? (
+                  <span
+                    className="badge text-sm"
+                    style={{ backgroundColor: (ticket as any).category.color + '20', color: (ticket as any).category.color }}
+                  >
+                    {(ticket as any).category.name}
+                  </span>
+                ) : (
+                  <span className="text-sm text-gray-400">None</span>
+                )
+              )}
+            </div>
+
+            <div>
               <label className="block text-xs text-gray-500 mb-1">Tags</label>
               <div className="flex flex-wrap gap-1">
                 {ticket.tags?.length ? (
@@ -425,6 +625,186 @@ export default function TicketDetailPage() {
                       <path d="M12.004 0c-1.532 6.636-5.368 10.472-12.004 12.004 6.636 1.532 10.472 5.368 12.004 12.004 1.532-6.636 5.368-10.472 12.004-12.004-6.636-1.532-10.472-5.368-12.004-12.004z"/>
                     </svg>
                     {creatingJira ? 'Creating...' : 'Create JIRA Ticket'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Watchers */}
+          <div className="card p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">Watchers</h3>
+              <button
+                onClick={handleWatchToggle}
+                className={cn(
+                  'flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-colors',
+                  isWatching
+                    ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400'
+                )}
+              >
+                {isWatching ? <EyeSlashIcon className="w-3.5 h-3.5" /> : <EyeIcon className="w-3.5 h-3.5" />}
+                {isWatching ? 'Unwatch' : 'Watch'}
+              </button>
+            </div>
+            {watchers.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {watchers.map((w: any) => {
+                  const u = w.user || w;
+                  return (
+                    <div key={u.id || w.userId} className="flex items-center gap-1.5" title={`${u.firstName || ''} ${u.lastName || ''}`}>
+                      <div className="w-6 h-6 rounded-full bg-primary-100 dark:bg-primary-900 flex items-center justify-center text-[10px] font-medium text-primary-700 dark:text-primary-300">
+                        {getInitials(u.firstName, u.lastName)}
+                      </div>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">{u.firstName}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400">No watchers</p>
+            )}
+            {isAgent && (
+              <div className="flex gap-2">
+                <select
+                  className="input text-sm flex-1"
+                  value={watcherUserId}
+                  onChange={(e) => setWatcherUserId(e.target.value)}
+                >
+                  <option value="">Add watcher...</option>
+                  {allUsers
+                    .filter((u) => !watchers.some((w: any) => (w.userId || w.user?.id) === u.id))
+                    .map((u) => (
+                      <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+                    ))}
+                </select>
+                <button
+                  onClick={handleAddWatcher}
+                  disabled={!watcherUserId}
+                  className="btn-primary py-1.5 px-2 text-sm"
+                >
+                  <PlusIcon className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Time Tracking */}
+          {isAgent && (
+            <div className="card p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold">Time Tracking</h3>
+                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                  {formatTimeMinutes((ticket as any).totalTimeMinutes || 0)}
+                </span>
+              </div>
+              {!showTimeForm ? (
+                <button
+                  onClick={() => setShowTimeForm(true)}
+                  className="btn-secondary w-full text-sm py-1.5 flex items-center justify-center gap-2"
+                >
+                  <ClockIcon className="w-4 h-4" /> Log Time
+                </button>
+              ) : (
+                <form onSubmit={handleLogTime} className="space-y-2">
+                  <div>
+                    <input
+                      type="number"
+                      className="input text-sm w-full"
+                      placeholder="Minutes"
+                      value={timeMinutes}
+                      onChange={(e) => setTimeMinutes(e.target.value)}
+                      min={1}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      className="input text-sm w-full"
+                      placeholder="Description (optional)"
+                      value={timeDescription}
+                      onChange={(e) => setTimeDescription(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="submit" disabled={loggingTime} className="btn-primary text-sm py-1.5 flex-1">
+                      {loggingTime ? 'Logging...' : 'Log'}
+                    </button>
+                    <button type="button" onClick={() => setShowTimeForm(false)} className="btn-secondary text-sm py-1.5 flex-1">
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              )}
+              {timeEntries.length > 0 && (
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {timeEntries.slice(0, 5).map((entry: any) => (
+                    <div key={entry.id} className="text-xs flex justify-between items-start border-t border-gray-100 dark:border-gray-800 pt-1.5">
+                      <div>
+                        <span className="font-medium">{formatTimeMinutes(entry.minutes)}</span>
+                        {entry.description && <p className="text-gray-500 mt-0.5">{entry.description}</p>}
+                      </div>
+                      <span className="text-gray-400 flex-shrink-0 ml-2">{timeAgo(entry.createdAt)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* CSAT Rating */}
+          {isResolved && isEndUser && isCreator && (
+            <div className="card p-5 space-y-3">
+              <h3 className="font-semibold">Rate your experience</h3>
+              {csatExisting ? (
+                <div>
+                  <div className="flex gap-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <StarSolidIcon
+                        key={star}
+                        className={cn('w-6 h-6', star <= (csatExisting.rating || csatExisting.score) ? 'text-yellow-400' : 'text-gray-200 dark:text-gray-700')}
+                      />
+                    ))}
+                  </div>
+                  {csatExisting.feedback && (
+                    <p className="text-sm text-gray-500 mt-2">{csatExisting.feedback}</p>
+                  )}
+                  <p className="text-xs text-gray-400 mt-1">Thank you for your feedback!</p>
+                </div>
+              ) : (
+                <div>
+                  <div className="flex gap-1 mb-3">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onMouseEnter={() => setCsatHover(star)}
+                        onMouseLeave={() => setCsatHover(0)}
+                        onClick={() => setCsatRating(star)}
+                        className="focus:outline-none"
+                      >
+                        {star <= (csatHover || csatRating) ? (
+                          <StarSolidIcon className="w-7 h-7 text-yellow-400 transition-colors" />
+                        ) : (
+                          <StarOutlineIcon className="w-7 h-7 text-gray-300 dark:text-gray-600 transition-colors" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  <textarea
+                    className="input text-sm w-full min-h-[60px]"
+                    placeholder="Any additional feedback? (optional)"
+                    value={csatFeedback}
+                    onChange={(e) => setCsatFeedback(e.target.value)}
+                  />
+                  <button
+                    onClick={handleCsatSubmit}
+                    disabled={csatRating === 0 || submittingCsat}
+                    className="btn-primary w-full text-sm py-1.5 mt-2"
+                  >
+                    {submittingCsat ? 'Submitting...' : 'Submit Rating'}
                   </button>
                 </div>
               )}

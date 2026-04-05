@@ -16,6 +16,26 @@ export interface Organization {
   slug: string;
   logo?: string;
   plan: 'FREE' | 'PRO' | 'ENTERPRISE';
+  autoAssignMode?: string;
+}
+
+export interface TicketCategory {
+  id: string;
+  name: string;
+  description?: string;
+  color: string;
+  icon?: string;
+  isActive: boolean;
+  sortOrder: number;
+}
+
+export interface CustomPriority {
+  id: string;
+  name: string;
+  level: number;
+  color: string;
+  icon?: string;
+  isDefault: boolean;
 }
 
 export interface Ticket {
@@ -23,8 +43,9 @@ export interface Ticket {
   ticketNumber: number;
   title: string;
   description: string;
-  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  priority: string;
   status: 'OPEN' | 'PENDING' | 'RESOLVED' | 'CLOSED';
+  categoryId?: string;
   organizationId: string;
   creatorId: string;
   assigneeId?: string;
@@ -33,6 +54,8 @@ export interface Ticket {
   resolvedAt?: string;
   closedAt?: string;
   firstResponseAt?: string;
+  totalTimeMinutes: number;
+  source: string;
   createdAt: string;
   updatedAt: string;
   jiraIssueKey?: string;
@@ -40,11 +63,15 @@ export interface Ticket {
   jiraStatus?: string;
   creator: Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'avatar'>;
   assignee?: Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'avatar'>;
+  category?: TicketCategory;
   tags: { tag: Tag }[];
   comments?: Comment[];
   attachments?: Attachment[];
   activityLogs?: ActivityLog[];
-  _count?: { comments: number };
+  watchers?: TicketWatcher[];
+  satisfactionRating?: SatisfactionRating;
+  timeEntries?: TimeEntry[];
+  _count?: { comments: number; watchers: number };
   slaPolicy?: SlaPolicy;
 }
 
@@ -91,6 +118,42 @@ export interface ActivityLog {
   userId: string;
   createdAt: string;
   user: Pick<User, 'id' | 'firstName' | 'lastName'>;
+}
+
+export interface TicketWatcher {
+  ticketId: string;
+  userId: string;
+  addedAt: string;
+  user: Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'avatar'>;
+}
+
+export interface SatisfactionRating {
+  id: string;
+  rating: number;
+  feedback?: string;
+  ticketId: string;
+  userId: string;
+  createdAt: string;
+}
+
+export interface TimeEntry {
+  id: string;
+  minutes: number;
+  description?: string;
+  ticketId: string;
+  userId: string;
+  createdAt: string;
+  user: Pick<User, 'id' | 'firstName' | 'lastName'>;
+}
+
+export interface CannedResponse {
+  id: string;
+  title: string;
+  content: string;
+  shortcut?: string;
+  categoryTag?: string;
+  isShared: boolean;
+  authorId: string;
 }
 
 export interface Notification {

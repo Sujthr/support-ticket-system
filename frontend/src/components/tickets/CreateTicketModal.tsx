@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
-import { ticketsApi, usersApi } from '@/lib/api';
+import { ticketsApi, usersApi, categoriesApi, prioritiesApi } from '@/lib/api';
 import { User } from '@/types';
 import toast from 'react-hot-toast';
 
@@ -13,17 +13,29 @@ interface Props {
 
 export default function CreateTicketModal({ onClose, onCreated }: Props) {
   const [agents, setAgents] = useState<User[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [customPriorities, setCustomPriorities] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     title: '',
     description: '',
     priority: 'MEDIUM',
     assigneeId: '',
+    categoryId: '',
     tags: '',
   });
 
+  const defaultPriorities = [
+    { name: 'LOW', label: 'Low' },
+    { name: 'MEDIUM', label: 'Medium' },
+    { name: 'HIGH', label: 'High' },
+    { name: 'URGENT', label: 'Urgent' },
+  ];
+
   useEffect(() => {
     usersApi.agents().then((res) => setAgents(res.data)).catch(() => {});
+    categoriesApi.list().then((res) => setCategories(res.data)).catch(() => {});
+    prioritiesApi.list().then((res) => setCustomPriorities(res.data)).catch(() => {});
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -36,6 +48,7 @@ export default function CreateTicketModal({ onClose, onCreated }: Props) {
         priority: form.priority,
       };
       if (form.assigneeId) payload.assigneeId = form.assigneeId;
+      if (form.categoryId) payload.categoryId = form.categoryId;
       if (form.tags.trim()) payload.tags = form.tags.split(',').map((t) => t.trim()).filter(Boolean);
 
       await ticketsApi.create(payload);
@@ -90,10 +103,13 @@ export default function CreateTicketModal({ onClose, onCreated }: Props) {
                 value={form.priority}
                 onChange={(e) => setForm({ ...form, priority: e.target.value })}
               >
-                <option value="LOW">Low</option>
-                <option value="MEDIUM">Medium</option>
-                <option value="HIGH">High</option>
-                <option value="URGENT">Urgent</option>
+                {customPriorities.length > 0
+                  ? customPriorities.map((p) => (
+                      <option key={p.id} value={p.name}>{p.name}</option>
+                    ))
+                  : defaultPriorities.map((p) => (
+                      <option key={p.name} value={p.name}>{p.label}</option>
+                    ))}
               </select>
             </div>
             <div>
@@ -111,6 +127,20 @@ export default function CreateTicketModal({ onClose, onCreated }: Props) {
                 ))}
               </select>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Category</label>
+            <select
+              className="input"
+              value={form.categoryId}
+              onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
+            >
+              <option value="">No category</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id}>{cat.name}</option>
+              ))}
+            </select>
           </div>
 
           <div>
