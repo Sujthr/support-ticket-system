@@ -189,3 +189,12 @@ export const emailConfigApi = {
   save: (data: any) => api.post('/email-config/config', data),
   test: () => api.post('/email-config/test'),
 };
+
+// ── Channels (Inbound Email, Twilio, WhatsApp) ──
+export const channelsApi = {
+  getConfig: () => api.get('/channels/config'),
+  saveConfig: (data: any) => api.post('/channels/config', data),
+  deleteConfig: () => api.delete('/channels/config'),
+  testImap: (data: any) => api.post('/channels/test-imap', data),
+  getMessages: (params?: any) => api.get('/channels/messages', { params }),
+};

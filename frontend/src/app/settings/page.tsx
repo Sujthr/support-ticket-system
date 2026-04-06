@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
-import { orgApi, slaApi, usersApi, authApi, jiraApi, categoriesApi, prioritiesApi, cannedResponsesApi, emailConfigApi } from '@/lib/api';
+import { orgApi, slaApi, usersApi, authApi, jiraApi, categoriesApi, prioritiesApi, cannedResponsesApi, emailConfigApi, channelsApi } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth';
 import toast from 'react-hot-toast';
 
@@ -41,6 +41,16 @@ export default function SettingsPage() {
   });
   const [emailSaving, setEmailSaving] = useState(false);
 
+  // Channel Config
+  const [channelForm, setChannelForm] = useState({
+    imapEnabled: false, imapHost: '', imapPort: 993, imapUser: '', imapPass: '', imapTls: true,
+    twilioEnabled: false, twilioAccountSid: '', twilioAuthToken: '', twilioPhoneNumber: '', twilioRecordCalls: false,
+    metaWhatsappEnabled: false, metaWhatsappToken: '', metaWhatsappPhoneId: '', metaWhatsappVerifyToken: '', metaWhatsappBusinessId: '',
+    autoReplyEnabled: true, deduplicateMinutes: 30,
+  });
+  const [channelSaving, setChannelSaving] = useState(false);
+  const [channelTestResult, setChannelTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
   // Auto-Assign
   const [autoAssignMode, setAutoAssignMode] = useState('MANUAL');
 
@@ -61,6 +71,9 @@ export default function SettingsPage() {
     cannedResponsesApi.list().then((r) => setCannedResponses(r.data)).catch(() => {});
     emailConfigApi.get().then((r) => {
       if (r.data) setEmailForm((prev) => ({ ...prev, ...r.data }));
+    }).catch(() => {});
+    channelsApi.getConfig().then((r) => {
+      if (r.data) setChannelForm((prev) => ({ ...prev, ...r.data }));
     }).catch(() => {});
     orgApi.getCurrent().then((r) => {
       if (r.data?.autoAssignMode) setAutoAssignMode(r.data.autoAssignMode);
@@ -204,6 +217,33 @@ export default function SettingsPage() {
     catch { toast.error('Failed to send test email'); }
   };
 
+  // ── Channel Config handlers ──
+  const handleChannelSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setChannelSaving(true);
+    try {
+      const { data } = await channelsApi.saveConfig(channelForm);
+      setChannelForm((prev) => ({ ...prev, ...data }));
+      toast.success('Channel configuration saved');
+    } catch { toast.error('Failed to save channel config'); }
+    finally { setChannelSaving(false); }
+  };
+  const handleImapTest = async () => {
+    setChannelTestResult(null);
+    try {
+      const { data } = await channelsApi.testImap({
+        imapHost: channelForm.imapHost,
+        imapPort: channelForm.imapPort,
+        imapUser: channelForm.imapUser,
+        imapPass: channelForm.imapPass,
+        imapTls: channelForm.imapTls,
+      });
+      setChannelTestResult(data);
+      if (data.success) toast.success(data.message);
+      else toast.error(data.message);
+    } catch { toast.error('Failed to test IMAP connection'); }
+  };
+
   // ── Auto-Assign handler ──
   const handleAutoAssignSave = async () => {
     try {
@@ -221,6 +261,7 @@ export default function SettingsPage() {
     { id: 'priorities', label: 'Priorities' },
     { id: 'canned', label: 'Canned Responses' },
     { id: 'email', label: 'Email' },
+    { id: 'channels', label: 'Channels' },
     { id: 'autoassign', label: 'Auto-Assign' },
   ];
 
@@ -731,6 +772,225 @@ export default function SettingsPage() {
                 <button type="button" onClick={handleEmailTest} className="btn-secondary">Send Test Email</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'channels' && (
+        <div className="space-y-6 max-w-2xl">
+          <form onSubmit={handleChannelSave} className="space-y-6">
+
+            {/* ── Inbound Email (IMAP) ── */}
+            <div className="card p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Inbound Email (IMAP)</h3>
+                    <p className="text-xs text-gray-500">Polls a mailbox for new emails and creates tickets automatically</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setChannelForm({ ...channelForm, imapEnabled: !channelForm.imapEnabled })}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${channelForm.imapEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                >
+                  <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${channelForm.imapEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+
+              {channelForm.imapEnabled && (
+                <div className="space-y-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">IMAP Host</label>
+                      <input className="input" placeholder="imap.gmail.com" value={channelForm.imapHost} onChange={(e) => setChannelForm({ ...channelForm, imapHost: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">IMAP Port</label>
+                      <input type="number" className="input" value={channelForm.imapPort} onChange={(e) => setChannelForm({ ...channelForm, imapPort: Number(e.target.value) })} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Username / Email</label>
+                      <input className="input" placeholder="support@company.com" value={channelForm.imapUser} onChange={(e) => setChannelForm({ ...channelForm, imapUser: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Password / App Password</label>
+                      <input type="password" className="input" value={channelForm.imapPass} onChange={(e) => setChannelForm({ ...channelForm, imapPass: e.target.value })} />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-2">
+                      <input type="checkbox" checked={channelForm.imapTls} onChange={(e) => setChannelForm({ ...channelForm, imapTls: e.target.checked })} className="rounded border-gray-300" />
+                      <span className="text-sm">Use TLS/SSL</span>
+                    </label>
+                    <button type="button" onClick={handleImapTest} className="btn-secondary text-xs">Test Connection</button>
+                  </div>
+                  {channelTestResult && (
+                    <div className={`text-sm p-2 rounded ${channelTestResult.success ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400' : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400'}`}>
+                      {channelTestResult.message}
+                    </div>
+                  )}
+                  <p className="text-xs text-gray-400">For Gmail: use imap.gmail.com:993, enable IMAP in Gmail settings, and use an App Password.</p>
+                </div>
+              )}
+            </div>
+
+            {/* ── Twilio (Voice + WhatsApp) ── */}
+            <div className="card p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                    <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Twilio (Voice + WhatsApp)</h3>
+                    <p className="text-xs text-gray-500">Phone calls and WhatsApp messages via Twilio or SignalWire</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setChannelForm({ ...channelForm, twilioEnabled: !channelForm.twilioEnabled })}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${channelForm.twilioEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                >
+                  <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${channelForm.twilioEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+
+              {channelForm.twilioEnabled && (
+                <div className="space-y-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Account SID</label>
+                      <input className="input" placeholder="ACxxxxxxxx" value={channelForm.twilioAccountSid} onChange={(e) => setChannelForm({ ...channelForm, twilioAccountSid: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Auth Token</label>
+                      <input type="password" className="input" value={channelForm.twilioAuthToken} onChange={(e) => setChannelForm({ ...channelForm, twilioAuthToken: e.target.value })} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Phone Number</label>
+                    <input className="input" placeholder="+1234567890" value={channelForm.twilioPhoneNumber} onChange={(e) => setChannelForm({ ...channelForm, twilioPhoneNumber: e.target.value })} />
+                    <p className="text-xs text-gray-400 mt-1">Your Twilio phone number (with country code). Used for both voice and WhatsApp.</p>
+                  </div>
+                  <label className="flex items-center gap-2">
+                    <input type="checkbox" checked={channelForm.twilioRecordCalls} onChange={(e) => setChannelForm({ ...channelForm, twilioRecordCalls: e.target.checked })} className="rounded border-gray-300" />
+                    <span className="text-sm">Record calls and transcribe voicemails</span>
+                  </label>
+                  <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 text-xs text-gray-500 space-y-1">
+                    <p className="font-medium text-gray-700 dark:text-gray-300">Webhook URLs (set these in your Twilio console):</p>
+                    <p>Voice: <code className="bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">{typeof window !== 'undefined' ? window.location.origin : ''}/api/v1/webhooks/twilio/voice</code></p>
+                    <p>WhatsApp: <code className="bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">{typeof window !== 'undefined' ? window.location.origin : ''}/api/v1/webhooks/twilio/whatsapp</code></p>
+                    <p>Status Callback: <code className="bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">{typeof window !== 'undefined' ? window.location.origin : ''}/api/v1/webhooks/twilio/voice/status</code></p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ── Meta WhatsApp Cloud API ── */}
+            <div className="card p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                    <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" /><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.611.611l4.458-1.496A11.952 11.952 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.342 0-4.542-.637-6.432-1.748l-.446-.268-2.637.884.884-2.637-.268-.447A9.955 9.955 0 012 12C2 6.486 6.486 2 12 2s10 4.486 10 10-4.486 10-10 10z" /></svg>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Meta WhatsApp Cloud API</h3>
+                    <p className="text-xs text-gray-500">Direct WhatsApp integration via Meta (free 1,000 conversations/month)</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setChannelForm({ ...channelForm, metaWhatsappEnabled: !channelForm.metaWhatsappEnabled })}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${channelForm.metaWhatsappEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                >
+                  <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${channelForm.metaWhatsappEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+
+              {channelForm.metaWhatsappEnabled && (
+                <div className="space-y-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Access Token</label>
+                      <input type="password" className="input" value={channelForm.metaWhatsappToken} onChange={(e) => setChannelForm({ ...channelForm, metaWhatsappToken: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Phone Number ID</label>
+                      <input className="input" placeholder="From Meta Business dashboard" value={channelForm.metaWhatsappPhoneId} onChange={(e) => setChannelForm({ ...channelForm, metaWhatsappPhoneId: e.target.value })} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Verify Token</label>
+                      <input className="input" placeholder="Your custom verify token" value={channelForm.metaWhatsappVerifyToken} onChange={(e) => setChannelForm({ ...channelForm, metaWhatsappVerifyToken: e.target.value })} />
+                      <p className="text-xs text-gray-400 mt-1">Set any string here and use the same in Meta webhook config.</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Business Account ID</label>
+                      <input className="input" placeholder="Optional" value={channelForm.metaWhatsappBusinessId} onChange={(e) => setChannelForm({ ...channelForm, metaWhatsappBusinessId: e.target.value })} />
+                    </div>
+                  </div>
+                  <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 text-xs text-gray-500 space-y-1">
+                    <p className="font-medium text-gray-700 dark:text-gray-300">Webhook URL (set in Meta Developers console):</p>
+                    <p><code className="bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">{typeof window !== 'undefined' ? window.location.origin : ''}/api/v1/webhooks/meta/whatsapp</code></p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ── Common Settings ── */}
+            <div className="card p-6">
+              <h3 className="font-semibold mb-4">Common Channel Settings</h3>
+              <div className="space-y-3">
+                <label className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm font-medium">Auto-reply to senders</span>
+                    <p className="text-xs text-gray-500">Send confirmation with ticket number back to the sender</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setChannelForm({ ...channelForm, autoReplyEnabled: !channelForm.autoReplyEnabled })}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${channelForm.autoReplyEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${channelForm.autoReplyEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </label>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Deduplication Window (minutes)</label>
+                  <input type="number" className="input w-32" min={0} max={1440} value={channelForm.deduplicateMinutes} onChange={(e) => setChannelForm({ ...channelForm, deduplicateMinutes: Number(e.target.value) })} />
+                  <p className="text-xs text-gray-400 mt-1">Messages from the same sender within this window are added as comments to the existing ticket instead of creating a new one. Set to 0 to disable.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button type="submit" className="btn-primary" disabled={channelSaving}>{channelSaving ? 'Saving...' : 'Save All Channel Settings'}</button>
+            </div>
+          </form>
+
+          {/* How it works */}
+          <div className="card p-6">
+            <h3 className="font-semibold mb-2">How Channels Work</h3>
+            <div className="text-sm text-gray-600 dark:text-gray-400 space-y-3">
+              <div>
+                <p className="font-medium text-gray-800 dark:text-gray-200">Inbound Email</p>
+                <p>The system polls your IMAP mailbox every minute. New unread emails are converted into tickets and marked as read. Free — works with any email provider (Gmail, Outlook, etc).</p>
+              </div>
+              <div>
+                <p className="font-medium text-gray-800 dark:text-gray-200">Phone Calls (Twilio/SignalWire)</p>
+                <p>When someone calls your support number, a ticket is automatically created. Optionally records voicemail with transcription. Configure webhook URLs in your Twilio/SignalWire dashboard.</p>
+              </div>
+              <div>
+                <p className="font-medium text-gray-800 dark:text-gray-200">WhatsApp</p>
+                <p>Supports both Twilio WhatsApp and Meta Cloud API (free tier: 1,000 conversations/month). Messages create tickets; follow-ups within the deduplication window are added as comments.</p>
+              </div>
+            </div>
           </div>
         </div>
       )}

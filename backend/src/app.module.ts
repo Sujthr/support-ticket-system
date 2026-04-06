@@ -20,6 +20,7 @@ import { SatisfactionModule } from './modules/satisfaction/satisfaction.module';
 import { TimeTrackingModule } from './modules/time-tracking/time-tracking.module';
 import { EmailModule } from './modules/email/email.module';
 import { CannedResponsesModule } from './modules/canned-responses/canned-responses.module';
+import { ChannelsModule } from './modules/channels/channels.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { CannedResponsesModule } from './modules/canned-responses/canned-respons
     TimeTrackingModule,
     EmailModule,
     CannedResponsesModule,
+    ChannelsModule,
   ],
 })
 export class AppModule {}

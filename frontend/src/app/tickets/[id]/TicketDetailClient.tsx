@@ -289,6 +289,16 @@ export default function TicketDetailPage() {
         </div>
         <span className={`badge text-sm ${getStatusColor(ticket.status)}`}>{ticket.status}</span>
         <span className={`badge text-sm ${getPriorityColor(ticket.priority)}`}>{ticket.priority}</span>
+        {ticket.source && ticket.source !== 'WEB' && ticket.source !== 'API' && (
+          <span className={`badge text-sm ${
+            ticket.source === 'PHONE' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
+            ticket.source === 'WHATSAPP' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+            ticket.source === 'EMAIL_INBOUND' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+            'bg-gray-100 text-gray-600'
+          }`}>
+            {ticket.source === 'PHONE' ? 'Phone' : ticket.source === 'WHATSAPP' ? 'WhatsApp' : ticket.source === 'EMAIL_INBOUND' ? 'Inbound Email' : ticket.source}
+          </span>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

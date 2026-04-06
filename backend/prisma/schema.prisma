@@ -32,6 +32,7 @@ model Organization {
   notifications      Notification[]
   jiraConfig         JiraConfig?
   emailConfig        EmailConfig?
+  channelConfig      ChannelConfig?
 
   @@map("organizations")
 }
@@ -149,7 +150,9 @@ model Ticket {
   closedAt         DateTime? @map("closed_at")
   firstResponseAt  DateTime? @map("first_response_at")
   totalTimeMinutes Int       @default(0) @map("total_time_minutes")
-  source           String    @default("WEB") // WEB, EMAIL, API
+  source           String    @default("WEB") // WEB, EMAIL, API, PHONE, WHATSAPP, EMAIL_INBOUND
+  channelMessageId String?   @map("channel_message_id") // external ID from Twilio/Meta/email
+  callerInfo       String?   @map("caller_info") // phone number or WhatsApp ID of the sender
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
 
@@ -463,4 +466,65 @@ model JiraConfig {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@map("jira_configs")
+}
+
+// ─── CHANNEL CONFIGURATION (Inbound Email, Twilio, WhatsApp) ────
+
+model ChannelConfig {
+  id             String  @id @default(uuid())
+  organizationId String  @unique @map("organization_id")
+
+  // ── Inbound Email (IMAP Polling) ──
+  imapEnabled    Boolean @default(false) @map("imap_enabled")
+  imapHost       String? @map("imap_host")
+  imapPort       Int     @default(993) @map("imap_port")
+  imapUser       String? @map("imap_user")
+  imapPass       String? @map("imap_pass")
+  imapTls        Boolean @default(true) @map("imap_tls")
+
+  // ── Twilio (Voice + WhatsApp) ──
+  twilioEnabled     Boolean @default(false) @map("twilio_enabled")
+  twilioAccountSid  String? @map("twilio_account_sid")
+  twilioAuthToken   String? @map("twilio_auth_token")
+  twilioPhoneNumber String? @map("twilio_phone_number")
+  twilioRecordCalls Boolean @default(false) @map("twilio_record_calls")
+
+  // ── Meta WhatsApp Cloud API ──
+  metaWhatsappEnabled    Boolean @default(false) @map("meta_whatsapp_enabled")
+  metaWhatsappToken      String? @map("meta_whatsapp_token")
+  metaWhatsappPhoneId    String? @map("meta_whatsapp_phone_id")
+  metaWhatsappVerifyToken String? @map("meta_whatsapp_verify_token")
+  metaWhatsappBusinessId String? @map("meta_whatsapp_business_id")
+
+  // ── Common Settings ──
+  autoReplyEnabled Boolean @default(true) @map("auto_reply_enabled")
+  deduplicateMinutes Int   @default(30) @map("deduplicate_minutes") // group messages from same sender within N minutes
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("channel_configs")
+}
+
+// ─── INBOUND MESSAGES (raw log of all inbound channel messages) ─
+
+model InboundMessage {
+  id             String   @id @default(uuid())
+  channel        String   // PHONE, WHATSAPP, EMAIL_INBOUND
+  externalId     String?  @map("external_id") // Twilio SID, email Message-ID, etc.
+  senderIdentity String   @map("sender_identity") // phone number, email address, WhatsApp ID
+  subject        String?
+  body           String?
+  rawPayload     String?  @map("raw_payload") // full JSON of the webhook payload
+  ticketId       String?  @map("ticket_id")
+  organizationId String   @map("organization_id")
+  processedAt    DateTime? @map("processed_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([organizationId])
+  @@index([senderIdentity, organizationId])
+  @@index([externalId])
+  @@map("inbound_messages")
 }
