@@ -82,6 +82,13 @@ export const usersApi = {
 export const orgApi = {
   getCurrent: () => api.get('/organizations/current'),
   update: (data: any) => api.patch('/organizations/current', data),
+  uploadLogo: (file: File) => {
+    const formData = new FormData();
+    formData.append('logo', file);
+    return api.post('/organizations/logo', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
   getTags: () => api.get('/organizations/tags'),
 };
 

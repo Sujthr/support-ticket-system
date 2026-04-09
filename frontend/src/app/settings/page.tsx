@@ -82,9 +82,39 @@ export default function SettingsPage() {
 
   const handleOrgUpdate = async () => {
     try {
-      await orgApi.update({ name: orgForm.name, domain: orgForm.domain, logo: orgForm.logo || null });
+      const { data } = await orgApi.update({ name: orgForm.name, domain: orgForm.domain, logo: orgForm.logo || null });
+      // Update auth store so logo reflects everywhere immediately
+      if (organization) {
+        const updatedOrg = { ...organization, name: data.name, logo: data.logo, domain: data.domain };
+        localStorage.setItem('organization', JSON.stringify(updatedOrg));
+        useAuthStore.setState({ organization: updatedOrg });
+      }
       toast.success('Organization updated');
     } catch { toast.error('Failed to update'); }
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/svg+xml', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Invalid file type. Use PNG, JPEG, GIF, SVG, or WebP.');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('File too large. Maximum size is 2MB.');
+      return;
+    }
+    try {
+      const { data } = await orgApi.uploadLogo(file);
+      setOrgForm((prev) => ({ ...prev, logo: data.logo }));
+      if (organization) {
+        const updatedOrg = { ...organization, logo: data.logo };
+        localStorage.setItem('organization', JSON.stringify(updatedOrg));
+        useAuthStore.setState({ organization: updatedOrg });
+      }
+      toast.success('Logo uploaded successfully');
+    } catch { toast.error('Failed to upload logo'); }
   };
 
   const handleInvite = async (e: React.FormEvent) => {
@@ -293,24 +323,47 @@ export default function SettingsPage() {
             <div className="flex items-center gap-6">
               <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-700 flex items-center justify-center overflow-hidden bg-gray-50 dark:bg-gray-800">
                 {orgForm.logo ? (
-                  <img src={orgForm.logo} alt="Logo" className="w-full h-full object-contain" />
+                  <img src={orgForm.logo.startsWith('/uploads') ? `${process.env.NEXT_PUBLIC_API_URL?.replace('/api/v1', '')}${orgForm.logo}` : orgForm.logo} alt="Logo" className="w-full h-full object-contain" />
                 ) : (
                   <span className="text-2xl font-bold text-gray-300 dark:text-gray-600">
                     {orgForm.name?.substring(0, 2).toUpperCase() || 'ORG'}
                   </span>
                 )}
               </div>
-              <div className="flex-1 space-y-2">
+              <div className="flex-1 space-y-3">
+                {/* File Upload */}
+                <div>
+                  <label className="btn-primary inline-flex items-center gap-2 cursor-pointer text-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    Upload Image
+                    <input type="file" className="hidden" accept="image/png,image/jpeg,image/gif,image/svg+xml,image/webp" onChange={handleLogoUpload} />
+                  </label>
+                </div>
+                {/* URL Input */}
+                <div className="text-xs text-gray-400 font-medium">Or paste a URL:</div>
                 <input
                   className="input text-sm"
-                  placeholder="Paste logo URL (e.g., https://yoursite.com/logo.png)"
+                  placeholder="https://yoursite.com/logo.png"
                   value={orgForm.logo || ''}
                   onChange={(e) => setOrgForm({ ...orgForm, logo: e.target.value })}
                 />
-                <p className="text-xs text-gray-400">Recommended: Square image, 128x128px or larger. PNG or SVG.</p>
+                <p className="text-xs text-gray-400">Recommended: Square image, 128x128px or larger. PNG, JPEG, SVG, or WebP. Max 2MB.</p>
                 {orgForm.logo && (
                   <button
-                    onClick={() => setOrgForm({ ...orgForm, logo: '' })}
+                    onClick={async () => {
+                      setOrgForm({ ...orgForm, logo: '' });
+                      try {
+                        const { data } = await orgApi.update({ logo: null });
+                        if (organization) {
+                          const updatedOrg = { ...organization, logo: null };
+                          localStorage.setItem('organization', JSON.stringify(updatedOrg));
+                          useAuthStore.setState({ organization: updatedOrg });
+                        }
+                        toast.success('Logo removed');
+                      } catch { toast.error('Failed to remove logo'); }
+                    }}
                     className="text-xs text-red-500 hover:text-red-700"
                   >
                     Remove logo

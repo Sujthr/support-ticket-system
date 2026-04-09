@@ -2,6 +2,16 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
 import { PrismaService } from '../../database/prisma.service';
 
+/** Escape HTML special characters to prevent XSS in email templates */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
@@ -112,7 +122,7 @@ export class EmailService {
 
       const subject = `Ticket #${ticket.ticketNumber} created successfully`;
       const bodyHtml = `
-        <p>Hi ${creator.firstName},</p>
+        <p>Hi ${escapeHtml(creator.firstName)},</p>
         <p>Your support ticket has been created successfully.</p>
         <table style="width:100%;border-collapse:collapse;margin:16px 0;">
           <tr>
@@ -121,7 +131,7 @@ export class EmailService {
           </tr>
           <tr>
             <td style="padding:8px 12px;font-weight:600;">Subject</td>
-            <td style="padding:8px 12px;">${ticket.title}</td>
+            <td style="padding:8px 12px;">${escapeHtml(ticket.title)}</td>
           </tr>
         </table>
         <p>We'll get back to you as soon as possible. You will be notified when there are updates.</p>
@@ -147,7 +157,7 @@ export class EmailService {
 
       const subject = `You've been assigned ticket #${ticket.ticketNumber}`;
       const bodyHtml = `
-        <p>Hi ${assignee.firstName},</p>
+        <p>Hi ${escapeHtml(assignee.firstName)},</p>
         <p>A support ticket has been assigned to you.</p>
         <table style="width:100%;border-collapse:collapse;margin:16px 0;">
           <tr>
@@ -156,7 +166,7 @@ export class EmailService {
           </tr>
           <tr>
             <td style="padding:8px 12px;font-weight:600;">Subject</td>
-            <td style="padding:8px 12px;">${ticket.title}</td>
+            <td style="padding:8px 12px;">${escapeHtml(ticket.title)}</td>
           </tr>
         </table>
         <p>Please review and respond at your earliest convenience.</p>
@@ -188,7 +198,7 @@ export class EmailService {
 
       const subject = `Ticket #${ticket.ticketNumber} status changed`;
       const bodyHtml = `
-        <p>Hi ${ticket.creator.firstName},</p>
+        <p>Hi ${escapeHtml(ticket.creator.firstName)},</p>
         <p>The status of your support ticket has been updated.</p>
         <table style="width:100%;border-collapse:collapse;margin:16px 0;">
           <tr>
@@ -197,15 +207,15 @@ export class EmailService {
           </tr>
           <tr>
             <td style="padding:8px 12px;font-weight:600;">Subject</td>
-            <td style="padding:8px 12px;">${ticket.title}</td>
+            <td style="padding:8px 12px;">${escapeHtml(ticket.title)}</td>
           </tr>
           <tr>
             <td style="padding:8px 12px;background-color:#f3f4f6;font-weight:600;">Previous Status</td>
-            <td style="padding:8px 12px;background-color:#f3f4f6;">${oldStatus}</td>
+            <td style="padding:8px 12px;background-color:#f3f4f6;">${escapeHtml(oldStatus)}</td>
           </tr>
           <tr>
             <td style="padding:8px 12px;font-weight:600;">New Status</td>
-            <td style="padding:8px 12px;"><strong style="color:#2563eb;">${newStatus}</strong></td>
+            <td style="padding:8px 12px;"><strong style="color:#2563eb;">${escapeHtml(newStatus)}</strong></td>
           </tr>
         </table>
       `;
@@ -230,14 +240,14 @@ export class EmailService {
       if (!config?.isActive || !config.onNewComment) return false;
 
       const authorName = comment.author
-        ? `${comment.author.firstName} ${comment.author.lastName}`
+        ? `${escapeHtml(comment.author.firstName)} ${escapeHtml(comment.author.lastName)}`
         : 'A team member';
 
       const subject = `New reply on ticket #${ticket.ticketNumber}`;
       const bodyHtml = `
-        <p>${authorName} replied on ticket <strong>#${ticket.ticketNumber} — ${ticket.title}</strong>:</p>
+        <p>${authorName} replied on ticket <strong>#${ticket.ticketNumber} — ${escapeHtml(ticket.title)}</strong>:</p>
         <div style="margin:16px 0;padding:16px;background-color:#f9fafb;border-left:4px solid #2563eb;border-radius:4px;">
-          ${comment.body}
+          ${escapeHtml(comment.body)}
         </div>
         <p>Log in to your support portal to view the full conversation and respond.</p>
       `;
@@ -269,7 +279,7 @@ export class EmailService {
 
       const subject = `SLA breach alert for ticket #${ticket.ticketNumber}`;
       const bodyHtml = `
-        <p>Hi ${assignee.firstName},</p>
+        <p>Hi ${escapeHtml(assignee.firstName)},</p>
         <p style="color:#dc2626;font-weight:600;">&#9888; An SLA breach has occurred on a ticket assigned to you.</p>
         <table style="width:100%;border-collapse:collapse;margin:16px 0;">
           <tr>
@@ -278,7 +288,7 @@ export class EmailService {
           </tr>
           <tr>
             <td style="padding:8px 12px;font-weight:600;">Subject</td>
-            <td style="padding:8px 12px;">${ticket.title}</td>
+            <td style="padding:8px 12px;">${escapeHtml(ticket.title)}</td>
           </tr>
         </table>
         <p>Please take immediate action to address this ticket.</p>
@@ -304,7 +314,7 @@ export class EmailService {
 
       const subject = `Your ticket #${ticket.ticketNumber} has been resolved`;
       const bodyHtml = `
-        <p>Hi ${creator.firstName},</p>
+        <p>Hi ${escapeHtml(creator.firstName)},</p>
         <p>Great news! Your support ticket has been resolved.</p>
         <table style="width:100%;border-collapse:collapse;margin:16px 0;">
           <tr>
@@ -313,7 +323,7 @@ export class EmailService {
           </tr>
           <tr>
             <td style="padding:8px 12px;font-weight:600;">Subject</td>
-            <td style="padding:8px 12px;">${ticket.title}</td>
+            <td style="padding:8px 12px;">${escapeHtml(ticket.title)}</td>
           </tr>
           <tr>
             <td style="padding:8px 12px;background-color:#f0fdf4;font-weight:600;">Status</td>

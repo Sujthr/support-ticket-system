@@ -1,12 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../database/prisma.service';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class SlaService {
   private readonly logger = new Logger(SlaService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private emailService: EmailService,
+  ) {}
 
   // Check for SLA breaches every 5 minutes
   @Cron(CronExpression.EVERY_5_MINUTES)
@@ -36,7 +40,7 @@ export class SlaService {
         data: { slaBreached: true },
       });
 
-      // Create notification for assignee/admins
+      // Create in-app notification for assignee
       if (ticket.assigneeId) {
         await this.prisma.notification.create({
           data: {
@@ -44,6 +48,34 @@ export class SlaService {
             title: 'SLA Breach',
             message: `Ticket #${ticket.ticketNumber} "${ticket.title}" has breached its SLA`,
             recipientId: ticket.assigneeId,
+            organizationId: ticket.organizationId,
+            metadata: JSON.stringify({ ticketId: ticket.id }),
+          },
+        });
+
+        // Send SLA breach email notification
+        if (ticket.assignee) {
+          this.emailService.sendSlaBreachEmail(ticket, ticket.assignee).catch(() => {});
+        }
+      }
+
+      // Notify all org admins about SLA breach
+      const admins = await this.prisma.user.findMany({
+        where: {
+          organizationId: ticket.organizationId,
+          role: 'ADMIN',
+          isActive: true,
+          id: { not: ticket.assigneeId || undefined },
+        },
+        select: { id: true },
+      });
+      for (const admin of admins) {
+        await this.prisma.notification.create({
+          data: {
+            type: 'SLA_BREACH',
+            title: 'SLA Breach Alert',
+            message: `Ticket #${ticket.ticketNumber} "${ticket.title}" has breached its SLA`,
+            recipientId: admin.id,
             organizationId: ticket.organizationId,
             metadata: JSON.stringify({ ticketId: ticket.id }),
           },

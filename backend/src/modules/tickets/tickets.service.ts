@@ -88,6 +88,19 @@ export class TicketsService {
 
     // Send email notifications
     this.emailService.sendTicketCreatedEmail(ticket, ticket.creator).catch(() => {});
+
+    // In-app notification for the ticket creator (confirmation)
+    await this.prisma.notification.create({
+      data: {
+        type: 'TICKET_CREATED',
+        title: 'Ticket created',
+        message: `Your ticket #${ticket.ticketNumber} "${ticket.title}" has been created successfully`,
+        recipientId: user.id,
+        organizationId: user.organizationId,
+        metadata: JSON.stringify({ ticketId: ticket.id }),
+      },
+    });
+
     if (ticket.assignee) {
       this.emailService.sendTicketAssignedEmail(ticket, ticket.assignee).catch(() => {});
 
@@ -302,22 +315,58 @@ export class TicketsService {
       }
     }
 
-    // Email: status changed
+    // Email & in-app: status changed
     if (dto.status && dto.status !== oldStatus) {
       this.emailService.sendTicketStatusChangedEmail(updatedTicket, oldStatus, dto.status).catch(() => {});
 
-      if (dto.status === 'RESOLVED') {
-        this.emailService.sendTicketResolvedEmail(updatedTicket, updatedTicket.creator).catch(() => {});
+      // In-app notification to creator about status change
+      if (ticket.creatorId !== user.id) {
         await this.prisma.notification.create({
           data: {
-            type: 'TICKET_RESOLVED',
-            title: 'Your ticket has been resolved',
-            message: `Ticket #${ticket.ticketNumber} "${ticket.title}" has been resolved`,
+            type: 'STATUS_CHANGED',
+            title: `Ticket status updated`,
+            message: `Ticket #${ticket.ticketNumber} "${ticket.title}" changed from ${oldStatus} to ${dto.status}`,
             recipientId: ticket.creatorId,
             organizationId: user.organizationId,
-            metadata: JSON.stringify({ ticketId: id }),
+            metadata: JSON.stringify({ ticketId: id, oldStatus, newStatus: dto.status }),
           },
         });
+      }
+
+      // Notify watchers about status change
+      const watcherRecords = await this.prisma.ticketWatcher.findMany({
+        where: { ticketId: id },
+        select: { userId: true },
+      });
+      for (const w of watcherRecords) {
+        if (w.userId !== user.id && w.userId !== ticket.creatorId) {
+          await this.prisma.notification.create({
+            data: {
+              type: 'STATUS_CHANGED',
+              title: `Ticket status updated`,
+              message: `Ticket #${ticket.ticketNumber} "${ticket.title}" changed from ${oldStatus} to ${dto.status}`,
+              recipientId: w.userId,
+              organizationId: user.organizationId,
+              metadata: JSON.stringify({ ticketId: id, oldStatus, newStatus: dto.status }),
+            },
+          });
+        }
+      }
+
+      if (dto.status === 'RESOLVED') {
+        this.emailService.sendTicketResolvedEmail(updatedTicket, updatedTicket.creator).catch(() => {});
+        if (ticket.creatorId !== user.id) {
+          await this.prisma.notification.create({
+            data: {
+              type: 'TICKET_RESOLVED',
+              title: 'Your ticket has been resolved',
+              message: `Ticket #${ticket.ticketNumber} "${ticket.title}" has been resolved`,
+              recipientId: ticket.creatorId,
+              organizationId: user.organizationId,
+              metadata: JSON.stringify({ ticketId: id }),
+            },
+          });
+        }
       }
     }
 

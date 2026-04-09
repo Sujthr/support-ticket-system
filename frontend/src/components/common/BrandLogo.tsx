@@ -24,7 +24,14 @@ export default function BrandLogo({ size = 'md', showText = true, className = ''
       {/* Logo / Icon */}
       {orgLogo || branding.logo ? (
         <img
-          src={orgLogo || branding.logo!}
+          src={(() => {
+            const logo = orgLogo || branding.logo!;
+            if (logo.startsWith('/uploads')) {
+              const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+              return apiBase.replace('/api/v1', '') + logo;
+            }
+            return logo;
+          })()}
           alt={branding.appName}
           className={`${s.icon} rounded-lg object-contain`}
         />
