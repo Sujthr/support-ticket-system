@@ -138,10 +138,26 @@ function startBackend() {
     const mainPath = getBackendMain();
     const dbPath = getDbPath();
     console.log('Starting backend:', mainPath);
+    console.log('Database path:', dbPath);
 
     if (!fs.existsSync(mainPath)) {
-      reject(new Error(`Backend not found: ${mainPath}`));
+      const errMsg = `Backend not found: ${mainPath}`;
+      console.error(errMsg);
+      reject(new Error(errMsg));
       return;
+    }
+
+    // Persist JWT secrets across restarts using electron-store
+    let store;
+    try {
+      const Store = require('electron-store');
+      store = new Store();
+      if (!store.get('jwtSecret')) {
+        store.set('jwtSecret', 'desktop-' + require('crypto').randomBytes(32).toString('hex'));
+        store.set('jwtRefreshSecret', 'desktop-refresh-' + require('crypto').randomBytes(32).toString('hex'));
+      }
+    } catch (e) {
+      console.warn('electron-store not available, generating ephemeral secrets');
     }
 
     const env = {
@@ -149,28 +165,57 @@ function startBackend() {
       NODE_ENV: 'production',
       PORT: String(BACKEND_PORT),
       DATABASE_URL: `file:${dbPath}`,
-      JWT_SECRET: 'desktop-' + require('crypto').randomBytes(16).toString('hex'),
-      JWT_REFRESH_SECRET: 'desktop-refresh-' + require('crypto').randomBytes(16).toString('hex'),
+      JWT_SECRET: store?.get('jwtSecret') || 'desktop-' + require('crypto').randomBytes(16).toString('hex'),
+      JWT_REFRESH_SECRET: store?.get('jwtRefreshSecret') || 'desktop-refresh-' + require('crypto').randomBytes(16).toString('hex'),
       JWT_EXPIRATION: '24h',
       JWT_REFRESH_EXPIRATION: '30d',
       FRONTEND_URL: `http://localhost:${FRONTEND_PORT}`,
     };
+
+    let resolved = false;
+    let backendErrors = [];
 
     backendProcess = fork(mainPath, [], { env, stdio: ['pipe', 'pipe', 'pipe', 'ipc'], silent: true });
 
     backendProcess.stdout?.on('data', (data) => {
       const msg = data.toString();
       console.log('[Backend]', msg.trim());
-      if (msg.includes('successfully started') || msg.includes('Server running')) resolve();
+      if (!resolved && (msg.includes('successfully started') || msg.includes('Server running'))) {
+        resolved = true;
+        resolve();
+      }
     });
 
-    backendProcess.stderr?.on('data', (d) => console.error('[Backend]', d.toString().trim()));
+    backendProcess.stderr?.on('data', (d) => {
+      const msg = d.toString().trim();
+      console.error('[Backend ERR]', msg);
+      backendErrors.push(msg);
+    });
+
     backendProcess.on('exit', (code) => {
-      console.log(`Backend exited: ${code}`);
-      if (!isQuitting) setTimeout(() => startBackend().catch(console.error), 3000);
+      console.log(`Backend exited with code: ${code}`);
+      if (!resolved) {
+        resolved = true;
+        const errorDetail = backendErrors.length > 0
+          ? `\n\nBackend errors:\n${backendErrors.slice(-5).join('\n')}`
+          : '';
+        reject(new Error(`Backend process exited with code ${code} before becoming ready.${errorDetail}`));
+        return;
+      }
+      if (!isQuitting) {
+        console.log('Backend crashed, restarting in 3 seconds...');
+        setTimeout(() => startBackend().catch(console.error), 3000);
+      }
     });
 
-    setTimeout(resolve, 15000);
+    // Increased timeout from 15s to 30s for slower machines
+    setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        console.warn('Backend start timed out after 30s, proceeding anyway...');
+        resolve();
+      }
+    }, 30000);
   });
 }
 
@@ -213,15 +258,28 @@ function startFrontend() {
 }
 
 // ─── Wait for port ──────────────────────────────────────────
-function waitForPort(port, maxRetries = 40) {
+function waitForPort(port, maxRetries = 60) {
   return new Promise((resolve, reject) => {
     let attempts = 0;
     const check = () => {
       attempts++;
-      const req = http.get(`http://localhost:${port}`, (res) => resolve());
+      if (attempts % 10 === 0) console.log(`Waiting for port ${port}... attempt ${attempts}/${maxRetries}`);
+      const req = http.get(`http://localhost:${port}`, (res) => {
+        console.log(`Port ${port} is ready (attempt ${attempts})`);
+        resolve();
+      });
       req.on('error', () => {
-        if (attempts >= maxRetries) reject(new Error(`Port ${port} not ready`));
-        else setTimeout(check, 500);
+        if (attempts >= maxRetries) {
+          reject(new Error(
+            `Port ${port} not ready after ${maxRetries} attempts (${maxRetries / 2}s).\n\n` +
+            `Possible causes:\n` +
+            `- Another application is using port ${port}\n` +
+            `- Antivirus is blocking the connection\n` +
+            `- The service failed to start (check logs in: ${app.getPath('userData')})`
+          ));
+        } else {
+          setTimeout(check, 500);
+        }
       });
       req.end();
     };
@@ -240,16 +298,30 @@ app.on('ready', async () => {
   createSplashWindow();
 
   try {
+    console.log('=== Starting SupportDesk ===');
+    console.log('App path:', app.getAppPath());
+    console.log('User data:', app.getPath('userData'));
+    console.log('Is packaged:', app.isPackaged);
+
     await startBackend();
     await waitForPort(BACKEND_PORT);
-    console.log('Backend ready');
+    console.log('Backend ready on port', BACKEND_PORT);
 
     await startFrontend();
     await waitForPort(FRONTEND_PORT);
-    console.log('Frontend ready');
+    console.log('Frontend ready on port', FRONTEND_PORT);
   } catch (err) {
     console.error('Startup failed:', err);
-    dialog.showErrorBox('Startup Error', `Failed to start services.\n\n${err.message}`);
+    dialog.showErrorBox(
+      'SupportDesk - Startup Error',
+      `Failed to start services.\n\n${err.message}\n\n` +
+      `Troubleshooting:\n` +
+      `1. Check if ports ${BACKEND_PORT}/${FRONTEND_PORT} are free\n` +
+      `2. Try restarting the application\n` +
+      `3. Check Windows Defender/antivirus settings\n` +
+      `4. Data folder: ${app.getPath('userData')}`
+    );
+    stopAll();
     app.quit();
     return;
   }
