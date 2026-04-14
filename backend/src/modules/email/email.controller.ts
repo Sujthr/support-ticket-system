@@ -124,4 +124,16 @@ export class EmailController {
         : 'Failed to send test email. Check your SMTP configuration.',
     };
   }
+
+  @Post('setup-ethereal')
+  @ApiOperation({ summary: 'Auto-setup Ethereal test email account (free, no signup)' })
+  async setupEthereal(@CurrentUser() user: AuthenticatedUser) {
+    return this.emailService.setupEtherealAccount(user.organizationId);
+  }
+
+  @Get('free-providers')
+  @ApiOperation({ summary: 'List free SMTP providers with configuration details' })
+  async getFreeProviders() {
+    return this.emailService.getFreeProviders();
+  }
 }

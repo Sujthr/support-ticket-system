@@ -195,6 +195,8 @@ export const emailConfigApi = {
   get: () => api.get('/email-config/config'),
   save: (data: any) => api.post('/email-config/config', data),
   test: () => api.post('/email-config/test'),
+  setupEthereal: () => api.post('/email-config/setup-ethereal'),
+  getFreeProviders: () => api.get('/email-config/free-providers'),
 };
 
 // ── Channels (Inbound Email, Twilio, WhatsApp) ──
@@ -204,4 +206,5 @@ export const channelsApi = {
   deleteConfig: () => api.delete('/channels/config'),
   testImap: (data: any) => api.post('/channels/test-imap', data),
   getMessages: (params?: any) => api.get('/channels/messages', { params }),
+  getFreeProviders: () => api.get('/channels/free-providers'),
 };

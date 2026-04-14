@@ -169,6 +169,97 @@ export class ChannelsConfigController {
       take: parseInt(limit || '50', 10),
     });
   }
+
+  @Get('free-providers')
+  @ApiOperation({ summary: 'List free channel integration providers with setup instructions' })
+  async getFreeProviders() {
+    return {
+      whatsapp: [
+        {
+          name: 'Twilio WhatsApp Sandbox',
+          cost: 'Free (no credit card)',
+          limit: 'Sandbox testing only',
+          setup: 'https://www.twilio.com/try-twilio → Console → Messaging → Try it Out → WhatsApp',
+          steps: [
+            'Create free Twilio account at https://www.twilio.com/try-twilio',
+            'Go to Console → Messaging → Try it Out → Send a WhatsApp Message',
+            'Note the sandbox number (e.g., +1 415 523 8886)',
+            'Send the join code from your WhatsApp to the sandbox number',
+            'Set webhook URL: https://your-domain.com/api/v1/webhooks/twilio/whatsapp',
+            'Configure Account SID, Auth Token, and Phone Number in this app',
+          ],
+        },
+        {
+          name: 'Meta WhatsApp Cloud API',
+          cost: '1,000 free conversations/month',
+          limit: 'Up to 5 test phone numbers in test mode',
+          setup: 'https://developers.facebook.com → Create App → Add WhatsApp',
+          steps: [
+            'Create Meta Developer account at https://developers.facebook.com',
+            'Create a Business type app and add WhatsApp product',
+            'Get Temporary Access Token and Phone Number ID from API Setup',
+            'Add test phone numbers (up to 5)',
+            'Configure webhook: https://your-domain.com/api/v1/webhooks/meta/whatsapp',
+            'Set verify token and subscribe to "messages"',
+            'Configure Token, Phone ID, Verify Token, and Business ID in this app',
+          ],
+        },
+      ],
+      phone: [
+        {
+          name: 'Twilio Free Trial',
+          cost: '$15.50 free credit (no card required)',
+          limit: '~500 minutes of calls',
+          setup: 'https://www.twilio.com/try-twilio',
+          steps: [
+            'Create free Twilio account',
+            'Buy a phone number (~$1/month from trial credit)',
+            'Configure voice webhook: https://your-domain.com/api/v1/webhooks/twilio/voice',
+            'Configure status webhook: https://your-domain.com/api/v1/webhooks/twilio/voice/status',
+            'Call your Twilio number to test',
+          ],
+        },
+      ],
+      inboundEmail: [
+        {
+          name: 'Gmail IMAP',
+          cost: 'Free',
+          limit: 'Unlimited',
+          setup: 'Gmail Settings → Enable IMAP + App Password',
+          config: { imapHost: 'imap.gmail.com', imapPort: 993, imapTls: true },
+          steps: [
+            'Enable IMAP in Gmail: Settings → Forwarding and POP/IMAP → Enable IMAP',
+            'Enable 2-Factor Authentication on your Google account',
+            'Generate App Password at https://myaccount.google.com/apppasswords',
+            'Use the 16-character app password as IMAP password',
+          ],
+        },
+        {
+          name: 'Outlook.com IMAP',
+          cost: 'Free',
+          limit: 'Unlimited',
+          config: { imapHost: 'outlook.office365.com', imapPort: 993, imapTls: true },
+          steps: [
+            'Use your Outlook.com email and password',
+            'If 2FA enabled, generate an app password',
+          ],
+        },
+      ],
+      webhookTunnel: {
+        name: 'ngrok (required for local development)',
+        cost: 'Free tier available',
+        setup: 'https://ngrok.com',
+        steps: [
+          'Sign up at https://ngrok.com',
+          'Install: npm install -g ngrok  OR  download from website',
+          'Authenticate: ngrok config add-authtoken YOUR_TOKEN',
+          'Start tunnel: ngrok http 3001',
+          'Use the HTTPS URL for all webhook configurations',
+        ],
+        note: 'Free ngrok URLs change on restart. Update webhooks accordingly.',
+      },
+    };
+  }
 }
 
 // ─── Webhook Endpoints (no auth — validated by provider signatures) ─

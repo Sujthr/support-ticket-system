@@ -2,6 +2,50 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
 import { PrismaService } from '../../database/prisma.service';
 
+/** Well-known free SMTP providers with their configuration */
+export const FREE_SMTP_PROVIDERS = {
+  ethereal: {
+    name: 'Ethereal (Development/Testing)',
+    description: 'Fake SMTP — emails captured but not delivered. Perfect for testing.',
+    host: 'smtp.ethereal.email',
+    port: 587,
+    secure: false,
+    note: 'Auto-generate credentials at https://ethereal.email or use the /email-config/setup-ethereal endpoint',
+  },
+  brevo: {
+    name: 'Brevo (formerly Sendinblue)',
+    description: 'Free tier: 300 emails/day',
+    host: 'smtp-relay.brevo.com',
+    port: 587,
+    secure: false,
+    note: 'Sign up at https://www.brevo.com — use your login email as SMTP user and your SMTP key as password',
+  },
+  gmail: {
+    name: 'Gmail',
+    description: 'Free: 500 emails/day. Requires App Password (2FA must be enabled)',
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
+    note: 'Generate App Password at https://myaccount.google.com/apppasswords',
+  },
+  mailtrap: {
+    name: 'Mailtrap',
+    description: 'Free tier: 100 emails/month (testing only)',
+    host: 'sandbox.smtp.mailtrap.io',
+    port: 2525,
+    secure: false,
+    note: 'Sign up at https://mailtrap.io — get credentials from Email Testing inbox',
+  },
+  outlook: {
+    name: 'Outlook / Hotmail',
+    description: 'Free with Microsoft account',
+    host: 'smtp-mail.outlook.com',
+    port: 587,
+    secure: false,
+    note: 'Use your full Outlook email and password (or app password with 2FA)',
+  },
+};
+
 /** Escape HTML special characters to prevent XSS in email templates */
 function escapeHtml(str: string): string {
   return str
@@ -353,5 +397,74 @@ export class EmailService {
     const html = this.buildHtml(subject, bodyHtml, 'This is a test email. No action required.');
 
     return this.sendMail(orgId, recipientEmail, subject, html);
+  }
+
+  /**
+   * Auto-generate an Ethereal test account and save it as the org's email config.
+   * Ethereal is a free fake SMTP service — emails are captured but never delivered.
+   * View captured emails at https://ethereal.email/messages
+   */
+  async setupEtherealAccount(orgId: string): Promise<{
+    success: boolean;
+    credentials?: { user: string; pass: string; webUrl: string };
+    message: string;
+  }> {
+    try {
+      const testAccount = await nodemailer.createTestAccount();
+
+      await this.prisma.emailConfig.upsert({
+        where: { organizationId: orgId },
+        create: {
+          smtpHost: 'smtp.ethereal.email',
+          smtpPort: 587,
+          smtpUser: testAccount.user,
+          smtpPass: testAccount.pass,
+          fromEmail: testAccount.user,
+          fromName: 'Support Desk (Test)',
+          isActive: true,
+          onTicketCreated: true,
+          onTicketAssigned: true,
+          onStatusChanged: true,
+          onNewComment: true,
+          onSlaBreach: true,
+          onTicketResolved: true,
+          organizationId: orgId,
+        },
+        update: {
+          smtpHost: 'smtp.ethereal.email',
+          smtpPort: 587,
+          smtpUser: testAccount.user,
+          smtpPass: testAccount.pass,
+          fromEmail: testAccount.user,
+          fromName: 'Support Desk (Test)',
+          isActive: true,
+        },
+      });
+
+      this.logger.log(`Ethereal test account created for org ${orgId}: ${testAccount.user}`);
+
+      return {
+        success: true,
+        credentials: {
+          user: testAccount.user,
+          pass: testAccount.pass,
+          webUrl: 'https://ethereal.email/messages',
+        },
+        message: `Ethereal test account configured. View emails at https://ethereal.email — login with ${testAccount.user}`,
+      };
+    } catch (error) {
+      this.logger.warn(`Failed to create Ethereal account: ${error.message}`);
+      return {
+        success: false,
+        message: `Failed to create Ethereal account: ${error.message}`,
+      };
+    }
+  }
+
+  /**
+   * Get list of free SMTP providers with their configuration details.
+   */
+  getFreeProviders() {
+    return FREE_SMTP_PROVIDERS;
   }
 }
