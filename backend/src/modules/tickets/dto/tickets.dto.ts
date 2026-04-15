@@ -1,14 +1,18 @@
-import { IsString, IsOptional, IsEnum, IsArray, IsUUID } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsArray, IsUUID, MaxLength, MinLength, ArrayMaxSize } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PaginationDto } from '../../../common/dto/pagination.dto';
 
 export class CreateTicketDto {
   @ApiProperty()
   @IsString()
+  @MinLength(1)
+  @MaxLength(255)
   title: string;
 
   @ApiProperty()
   @IsString()
+  @MinLength(1)
+  @MaxLength(10000)
   description: string;
 
   @ApiPropertyOptional()
@@ -29,7 +33,9 @@ export class CreateTicketDto {
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(20)
   @IsString({ each: true })
+  @MaxLength(50, { each: true })
   tags?: string[];
 
   @ApiPropertyOptional({ enum: ['WEB', 'EMAIL', 'API'] })

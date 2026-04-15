@@ -10,12 +10,14 @@ import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../../database/prisma.service';
 import { SignupDto, LoginDto, InviteUserDto } from './dto/auth.dto';
 import { JwtPayload, AuthenticatedUser } from '../../common/interfaces/jwt-payload.interface';
+import { AppLogger } from '../../common/logger/app-logger.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+    private readonly logger: AppLogger,
   ) {}
 
   async signup(dto: SignupDto) {
@@ -66,6 +68,10 @@ export class AuthService {
 
     const tokens = await this.generateTokens(result.user);
 
+    this.logger.medium('signup succeeded', 'Auth', {
+      userId: result.user.id, orgId: result.org.id, email: dto.email,
+    });
+
     return {
       user: this.sanitizeUser(result.user),
       organization: result.org,
@@ -91,11 +97,17 @@ export class AuthService {
     });
 
     if (!user || !user.isActive) {
+      this.logger.high('login failed: unknown/inactive user', 'Auth', {
+        email: dto.email, orgSlug: dto.organizationSlug,
+      });
       throw new UnauthorizedException('Invalid credentials');
     }
 
     const passwordValid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!passwordValid) {
+      this.logger.high('login failed: bad password', 'Auth', {
+        userId: user.id, email: dto.email,
+      });
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -106,6 +118,7 @@ export class AuthService {
     });
 
     const tokens = await this.generateTokens(user);
+    this.logger.medium('login succeeded', 'Auth', { userId: user.id, email: user.email });
 
     return {
       user: this.sanitizeUser(user),
@@ -121,6 +134,7 @@ export class AuthService {
     });
 
     if (!stored || stored.expiresAt < new Date()) {
+      this.logger.high('refresh-token rejected', 'Auth', { present: !!stored });
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
