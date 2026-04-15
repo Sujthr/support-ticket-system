@@ -39,7 +39,14 @@
       "app-frontend/**/*",
       "node_modules/**/*",
       "!node_modules/electron/**",
-      "!node_modules/electron-builder/**"
+      "!node_modules/electron-builder/**",
+      "!app-backend/**/*.map",
+      "!app-backend/prisma/dev.db-journal"
+    ],
+    "asarUnpack": [
+      "app-backend/node_modules/.prisma/**/*",
+      "app-backend/node_modules/@prisma/engines/**/*",
+      "app-backend/prisma/**/*"
     ],
     "extraResources": [
       {
