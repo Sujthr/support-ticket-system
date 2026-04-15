@@ -7,12 +7,28 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/src/main",
+    "postinstall": "node scripts/postinstall.js",
+    "setup": "node scripts/setup.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "ts-node prisma/seed.ts",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:e2e": "jest --config ./test/jest-e2e.json --forceExit --detectOpenHandles"
+  },
+  "engines": {
+    "node": ">=18.17.0",
+    "npm": ">=9.0.0"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  },
+  "jest": {
+    "moduleFileExtensions": ["js", "json", "ts"],
+    "rootDir": "src",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": { "^.+\\.(t|j)s$": "ts-jest" },
+    "testEnvironment": "node"
   },
   "dependencies": {
     "@nestjs/common": "^10.3.0",

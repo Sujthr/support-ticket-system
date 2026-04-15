@@ -5,6 +5,9 @@ dist/
 *.log
 uploads/
 .DS_Store
+logs/
+*.tsbuildinfo
+backend/prisma/dev.db-journal
 
 backend/.env
 backend/prisma/dev.db
