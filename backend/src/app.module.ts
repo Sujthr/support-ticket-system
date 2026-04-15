@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_FILTER } from '@nestjs/core';
+import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { PrismaModule } from './database/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
@@ -23,9 +24,11 @@ import { TimeTrackingModule } from './modules/time-tracking/time-tracking.module
 import { EmailModule } from './modules/email/email.module';
 import { CannedResponsesModule } from './modules/canned-responses/canned-responses.module';
 import { ChannelsModule } from './modules/channels/channels.module';
+import { LoggerModule } from './common/logger/logger.module';
 
 @Module({
   imports: [
+    LoggerModule,
     ScheduleModule.forRoot(),
     // Rate limiting: 100 requests per 60 seconds per IP
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
@@ -54,6 +57,8 @@ import { ChannelsModule } from './modules/channels/channels.module';
   providers: [
     // Apply rate limiting globally
     { provide: APP_GUARD, useClass: ThrottlerGuard },
+    // Global exception filter with categorized logging
+    { provide: APP_FILTER, useClass: GlobalExceptionFilter },
   ],
 })
 export class AppModule {}
